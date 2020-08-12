@@ -1,0 +1,25 @@
+{
+  "name": "jsgb-gamegenerator",
+  "version": "0.1.0",
+  "description": "Javascript GameBoy Game Generator",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hugodecasta/jsgb-GameGenerator.git"
+  },
+  "keywords": [
+    "Gameboy",
+    "Color",
+    "Javascript",
+    "Assembly"
+  ],
+  "author": "Julien Bisconti <julienbi@unity3d.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/hugodecasta/jsgb-GameGenerator/issues"
+  },
+  "homepage": "https://github.com/hugodecasta/jsgb-GameGenerator#readme"
+}
