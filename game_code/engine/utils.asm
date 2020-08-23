@@ -43,7 +43,7 @@ screen_on::
 load_palette::
     ; B = palette starting byte (p0 = 0, p1 = 8)
     ; HL = palette source bytes
-    ; DE = palette destination
+    ; DE = palette RAM modifier adresse
     ld c, 8
 .palette_load_loop:
     ld a, b

@@ -1,15 +1,22 @@
 ; ----------------------------- HARDWARE
 
 INCLUDE "engine/gbc-hw.inc"
-INCLUDE "generated/DATA.inc"
 
 ; ----------------------------- UTILS
 
 INCLUDE "engine/utils.asm"
 
+; ----------------------------- ENGINE
+
+INCLUDE "engine/joypad_engine.asm"
+
+; ----------------------------- GENERATED
+
+INCLUDE "generated/global_importer.asm"
+
 ; ----------------------------- HEADER
 
-INCLUDE "engine/interrupt.asm"
+INCLUDE "engine/interrupts.asm"
 INCLUDE "engine/header.asm"
 
 ; ----------------------------- MAIN
@@ -25,9 +32,14 @@ main:
 	ld	[rIE], a
 	ei
 
-    call init_joypad_engine
+    ld a, LCDCF_OFF
+    ld [rLCDC], a
 
-    INCLUDE "generated/init.asm"
+    call init_joypad_engine
+    call main_init
+
+    ld a, LCDCF_ON|LCDCF_WIN9800|LCDCF_BG8000|LCDCF_BGON|LCDCF_OBJON|LCDCF_OBJ8
+    ld [rLCDC], a
 
 ; ----------------------------- LOOP
 
@@ -36,5 +48,5 @@ loop:
     halt
     nop
     call run_joypad_engine
-    INCLUDE "generated/loop.asm"
+    call main_loop
     jr loop
