@@ -10,8 +10,9 @@ let {
 // -------------------------------------- DATA
 
 let filename = process.argv[2]
-let path = filename.split('-')[0]
-let full_path = __dirname + '/imgs/' + path + '/' + filename + '.json'
+let score = process.argv[3]
+let full_file_name = filename + '-best-' + score
+let full_path = __dirname + '/imgs/' + filename + '/' + full_file_name + '.json'
 
 const { tiles: bg_tiles, map_data: bg_map_data, palettes: bg_palettes } = tile_importer(full_path)
 
