@@ -1,6 +1,0 @@
-INCLUDE "generated/init.asm"
-INCLUDE "generated/loop.asm"
-INCLUDE "generated/ints.asm"
-INCLUDE "generated/background.asm"
-INCLUDE "generated/socket.asm"
-INCLUDE "generated/DATA.inc"

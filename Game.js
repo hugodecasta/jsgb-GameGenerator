@@ -1,3 +1,4 @@
+
 // ----------------------------------------------------------------------- CONVERTERS
 
 function hex(h) { return parseInt(h, 16) }
@@ -25,6 +26,41 @@ const JP_LEFT_BIT = 4
 const JP_RIGHT_BIT = 5
 const JP_UP_BIT = 6
 const JP_DOWN_BIT = 7
+
+// ----------------------------------------------------------------------- GENERATE GAME
+
+function generate_game(game_name) {
+
+    // --- prepare dirs
+
+    const ENGINE_DIR = `${__dirname}/game_engine`
+    const GAME_DIR = `${__dirname}/${game_name}_game_code`
+    const GAME_CODE_GEN_DIR = `${GAME_DIR}/generated`
+
+    const fs = require('fs')
+    const rimraf = require('rimraf')
+    const copydir = require('copy-dir')
+
+    rimraf.sync(GAME_DIR)
+    copydir.sync(ENGINE_DIR, GAME_DIR)
+    fs.mkdirSync(GAME_CODE_GEN_DIR)
+
+    // --- write files
+
+    let game_files = encode_game()
+    for (let file_name in game_files) {
+        let file_code = game_files[file_name]
+        fs.writeFileSync(`${GAME_CODE_GEN_DIR}/${file_name}`, file_code)
+    }
+
+    // --- compile
+
+    const ASM_SH_PATH = `./assemble.sh`
+    const shell = require('shelljs')
+    shell.config.verbose = false
+    shell.cd(GAME_DIR)
+    shell.exec(ASM_SH_PATH)
+}
 
 // ----------------------------------------------------------------------- CODE MANAGEMENT
 
@@ -67,6 +103,10 @@ function reserve_rom_multi(name, type, all_data) {
 
 function new_branch() {
     return `branch_${next_branch_id++}`
+}
+
+function set_VRAM_bank(bank_number) {
+    load_to_addr(hex('FF4F'), bank_number)
 }
 
 function reserve_ram(name, byte_size = 1) {
@@ -263,7 +303,22 @@ function setup_palette(name, color_data_array) {
 }
 
 function setup_tiles(name, tiles_data) {
-    reserve_rom_multi(name, 'DB', tiles_data.map(l => l.map(v => to_hex(hex(v)))))
+    reserve_rom(name, 'DB', tiles_data)
+}
+
+function setup_background(name, tiles_data, map_data) {
+    reserve_rom(`${name}_tiles`, 'DB', tiles_data)
+    reserve_rom(`${name}_tile_map`, 'DB', map_data.map(md => md.tile_index).map(v => to_hex(v)))
+    reserve_rom(`${name}_info_map`, 'DB', map_data.map(md => {
+        let bin_pal_index = md.palette_index.toString(2)
+        let bin_map_formated = ("00" + bin_pal_index).slice(-3);
+        let VRAM_bank = 0
+        let hflip = 0
+        let vflip = 0
+        let bgoam_prio = 0
+        let final_bin = `${bgoam_prio}${vflip}${hflip}0${VRAM_bank}${bin_map_formated}`
+        return bin(final_bin)
+    }).map(v => to_hex(v)))
 }
 
 function label(label_name) {
@@ -288,9 +343,9 @@ function if_jumper(flagger, flag_cp, if_func, flag = 'nz') {
     label(end_branch)
 }
 
-function if_else_jumper(flagger, flag_cp, if_func, else_func = null) {
+function if_else_jumper(flagger, cp_value, if_func, else_func = null) {
     if (else_func == null) {
-        return if_jumper(flagger, flag_cp, if_func)
+        return if_jumper(flagger, cp_value, if_func)
     }
     let end_branch = new_branch()
     let else_branch = new_branch()
@@ -326,10 +381,30 @@ function on_joypad_change_button(button_byte, pressed_func, unpressed_func) {
 }
 
 function mem_copy(from, to, size) {
-    load('hl', from)
-    load('de', to)
-    load('b', size)
-    call('memcpy')
+    let size_segments = Math.trunc(size / 250)
+    let remaining = size - 250 * size_segments
+    let loaders = Array.from(new Array(size_segments)).map(() => 250).concat(remaining).filter(len => len > 0)
+    let total_len = 0
+    for (let len of loaders) {
+        load('hl', from + ' + ' + total_len)
+        load('de', to + ' + ' + total_len)
+        load('b', len)
+        call('memcpy')
+        total_len += len
+    }
+}
+
+function load_background(name, tile_size, map_size) {
+
+    let tiles_pointer = `${name}_tiles`
+    let tile_map_pointer = `${name}_tile_map`
+    let map_info_pointer = `${name}_info_map`
+
+    mem_copy(tiles_pointer, hex('8000'), tile_size)
+    mem_copy(tile_map_pointer, hex('9800'), map_size)
+    set_VRAM_bank(1)
+    mem_copy(map_info_pointer, hex('9800'), map_size)
+    set_VRAM_bank(0)
 }
 
 function put_in_vram_sprite(addr, size) {
@@ -371,7 +446,7 @@ function on_every(time, func) {
 }
 
 function hex_to_color(hc) {
-    let hc = Array.from(hc)
+    hc = Array.from(hc)
     hc.splice(0, 1)
     let r = hex(hc.slice(0, 2).join(''))
     let g = hex(hc.slice(2, 4).join(''))
@@ -383,115 +458,9 @@ function hex_palette(hc1, hc2, hc3, hc4) {
     return [hex_to_color(hc1), hex_to_color(hc2), hex_to_color(hc3), hex_to_color(hc4)]
 }
 
-// ----------------------------------------------------------------------- MAIN
+// ----------------------------------------------------------------------- EXPORTS
 
-// -------------------------------------- CONSTANTS
-
-const RED = [255, 0, 0]
-const GREEN = [0, 255, 0]
-const BLUE = [0, 0, 255]
-const WHITE = [255, 255, 255]
-const BLACK = [0, 0, 0]
-
-const base_gray_palette = [[255, 255, 255], [169, 169, 169], [84, 84, 84], [0, 0, 0]]
-const base_green_palette = [[155, 188, 15], [139, 172, 15], [48, 98, 48], [15, 56, 15]]
-
-const test_tile_data = [
-    ['00', '3C', '00', 'FF', '7E', '7E', '00', '7E'],
-    ['5E', '20', '42', '3E', '04', '3C', '76', '76']
-]
-
-// -------------------------------------- INIT GAME FILES
-init_generation()
-
-// -------------------------------------- GB SETUP
-current_file = 'background'
-setup_palette('bg_palette', base_green_palette)
-
-// -------------------------------------- SPRITE SETUP
-current_file = 'socket'
-setup_palette('socket_palette', base_green_palette)
-setup_tiles('socket_tiles', test_tile_data)
-reserve_ram('score')
-
-// -------------------------------------- INIT
-goto_init_sr()
-load_bg_palette(0, 'bg_palette')
-load_obj_palette(0, 'socket_palette')
-put_in_vram_sprite('socket_tiles', 16)
-
-load_to_addr('score', 0)
-
-set_OAM_tile_id(1, hex(80))
-set_OAM_xy(1, 60, 'score')
-set_OAM_attributes(1, bin(10010000))
-
-// -------------------------------------- JOYPAD EVT
-goto_loop_sr()
-
-load_from_addr('score')
-if_jumper('cp', 0,
-    () => {
-        load_to_addr('score', 1)
-    }
-)
-sub_to_addr('score', 1)
-
-load_from_addr('joypad_data')
-if_jumper('bit', JP_A_BIT, () => {
-    add_to_addr('score', 2)
-})
-load_from_addr('joypad_data')
-if_jumper('bit', JP_RIGHT_BIT, () => {
-    sub_to_addr('socket_x', 2)
-})
-on_joypad_change_button(JP_A_BIT, () => {
-    load_from_addr('socket_up_acc')
-    if_jumper('cp', 0, () => {
-        sub_to_addr('socket_up_acc', 9)
-    })
-})
-
-load_from_addr('socket_up_acc')
-if_jumper('cp', 10, () => {
-    load_to_addr('socket_up_acc', 9)
-})
-add_to_addr('socket_up_acc', 1)
-add_to_addr('socket_y', 'socket_up_acc')
-load_from_addr('socket_y')
-if_jumper('cp', 100, () => {
-    load_to_addr('socket_y', 99)
-    load_to_addr('socket_up_acc', 0)
-}, 'c')
-set_OAM_xy(1, 'socket_x', 'socket_y')
-
-// ----------------------------------------------------------------------- SAVE
-
-const GAME_CODE_GEN_DIR = `${__dirname}/game_code/generated`
-
-const fs = require('fs')
-const rimraf = require('rimraf')
-
-rimraf.sync(GAME_CODE_GEN_DIR)
-fs.mkdirSync(GAME_CODE_GEN_DIR)
-
-console.log('---------------------------- GENERATED FILES ----------------------------')
-
-let game_files = encode_game()
-for (let file_name in game_files) {
-    let file_code = game_files[file_name]
-    console.log()
-    console.log('------------- FILE :', file_name, '-------------\n')
-    console.log(file_code)
-    console.log()
-    fs.writeFileSync(`${GAME_CODE_GEN_DIR}/${file_name}`, file_code)
+module.exports = {
+    init_generation, setup_palette, setup_background, goto_init_sr,
+    load_bg_palette, load_background, current_file, generate_game
 }
-
-// ----------------------------------------------------------------------- ASSEMBLE
-
-console.log('---------------------------- ASSEMBLING ----------------------------')
-
-const ASM_SH_PATH = `${__dirname}/assemble.sh`
-
-const shell = require('shelljs')
-shell.exec(ASM_SH_PATH)

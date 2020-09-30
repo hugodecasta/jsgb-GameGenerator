@@ -6,10 +6,11 @@ ASM				:=	rgbasm
 LINKER			:=	rgblink
 FIX				:=	rgbfix
 
-EMU				:= wine ~/bgb/bgb.exe
+#EMU				:= wine ~/bgb/bgb.exe
+EMU				:= /mnt/c/Users/Hugo/test_bureau/EMU/bgb.exe
 #EMU				:= ../../SameBoy-0.13.3/build/bin/SDL/sameboy
 
-PROD_NAME		:= MYGAME
+PROD_NAME		:= GAME
 EXT				:= gbc
 
 ROM_NAME		:= $(PROD_NAME).$(EXT)

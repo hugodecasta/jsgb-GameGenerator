@@ -2,6 +2,12 @@
 junk/*
 *junk*
 
+/imgs/*
+
+*_game_code
+
+*.png
+
 # Logs
 logs
 *.log
